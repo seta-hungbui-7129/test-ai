@@ -3,7 +3,6 @@ AI LMS — MCQ Generator
 Streamlit UI entry point.
 
 Run:
-    cp .env.example .env   # fill in ANTHROPIC_API_KEY
     pip install -r requirements.txt
     streamlit run app.py
 """
@@ -15,27 +14,23 @@ from services.document_loader import load_document
 from services.mcq_generator import generate_mcqs
 from services.models import MCQ
 
-# ─── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="AI MCQ Generator",
     page_icon="🧠",
     layout="centered",
 )
 
-# ─── Custom CSS ───────────────────────────────────────────────────────────────
 st.markdown(
     """
     <style>
-    /* Theme-aware variables for consistency */
     :root {
         --mcq-bg: rgba(128, 128, 128, 0.05);
         --mcq-border: rgba(128, 128, 128, 0.2);
         --mcq-text: inherit;
-        --mcq-question-color: #ff4b4b; /* Streamlit Red for focus */
+        --mcq-question-color: #ff4b4b;
         --mcq-correct: #2e7d32;
         --mcq-explanation: rgba(128, 128, 128, 0.7);
     }
-
     .mcq-card {
         border: 1px solid var(--mcq-border);
         border-radius: 12px;
@@ -87,13 +82,12 @@ st.markdown(
 )
 
 
-# ─── Session-state defaults ────────────────────────────────────────────────────
 def _init_state():
     defaults = {
         "document_text": "",
         "word_count": 0,
         "char_count": 0,
-        "mcqs": [],          # type: list[MCQ]
+        "mcqs": [],
         "uploaded": False,
         "api_key": "",
         "model": "claude-haiku-4-5",
@@ -105,7 +99,6 @@ def _init_state():
 _init_state()
 
 
-# ─── Sidebar: API Key + Upload panel ──────────────────────────────────────────
 with st.sidebar:
     st.header("🔑 API Key")
     api_key_input = st.text_input(
@@ -134,7 +127,7 @@ with st.sidebar:
     selected_model = model[0]
     if "model" not in st.session_state or st.session_state.model != selected_model:
         st.session_state.model = selected_model
-        st.session_state.mcqs = []  # reset on model change
+        st.session_state.mcqs = []
 
     st.divider()
     st.header("📄 Upload Training Material")
@@ -153,7 +146,7 @@ with st.sidebar:
                 st.session_state.word_count = words
                 st.session_state.char_count = chars
                 st.session_state.uploaded = True
-                st.session_state.mcqs = []        # clear previous MCQs on new upload
+                st.session_state.mcqs = []
                 st.success("Document loaded successfully!")
             except Exception as exc:
                 st.error(f"Failed to read file: {exc}")
@@ -168,13 +161,10 @@ with st.sidebar:
             st.text(preview + "…" if len(st.session_state.document_text) > 300 else preview)
 
 
-# ─── Main area ─────────────────────────────────────────────────────────────────
 st.title("🧠 AI MCQ Generator")
 st.caption("Upload a training document → click Generate → get 5 fresh MCQs instantly.")
-
 st.divider()
 
-# ── Generate button ───────────────────────────────────────────────────────────
 col_btn, col_status = st.columns([1, 2])
 
 with col_btn:
@@ -196,9 +186,15 @@ if generate_disabled:
 if clicked:
     with st.spinner("🤖 AI is reading the document and generating questions…"):
         try:
-            mcqs = generate_mcqs(st.session_state.document_text, num=5, api_key=st.session_state.api_key, model=st.session_state.model, exclude_questions=st.session_state.mcqs)
+            mcqs = generate_mcqs(
+                st.session_state.document_text,
+                num=5,
+                api_key=st.session_state.api_key,
+                model=st.session_state.model,
+                exclude_questions=st.session_state.mcqs,
+            )
             st.session_state.mcqs = mcqs
-            st.rerun()   # re-render to show results immediately
+            st.rerun()
         except ValueError as exc:
             st.error(str(exc))
             st.code(traceback.format_exc(), language="text")
@@ -207,23 +203,16 @@ if clicked:
             st.code(traceback.format_exc(), language="text")
 
 
-# ── MCQ display ────────────────────────────────────────────────────────────────
 if st.session_state.mcqs:
     st.subheader(f"📝 {len(st.session_state.mcqs)} Questions Generated")
     st.caption("Each click of **Generate** replaces these with a new set.")
 
     for idx, mcq in enumerate(st.session_state.mcqs, start=1):
-        # Build option labels
         labels = ["A", "B", "C", "D"]
         options_html = ""
         for label, opt in zip(labels, mcq.options):
-            if opt == mcq.answer:
-                css_class = "correct-answer"
-            else:
-                css_class = "option-item"
-            options_html += (
-                f'<div class="{css_class}"><strong>{label}.</strong> {opt}</div>'
-            )
+            css_class = "correct-answer" if opt == mcq.answer else "option-item"
+            options_html += f'<div class="{css_class}"><strong>{label}.</strong> {opt}</div>'
 
         html = f"""
         <div class="mcq-card">

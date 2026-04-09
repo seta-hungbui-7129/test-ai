@@ -3,7 +3,6 @@ MCQ Generator — calls Anthropic Claude API and returns validated MCQ objects.
 """
 
 import json
-import os
 import re
 import textwrap
 import traceback
@@ -13,24 +12,19 @@ from anthropic import Anthropic
 
 from .models import MCQ, MCQList
 
-# Simple logger — prints to stdout / Streamlit console
+
 def _log(*args, **kwargs):
     print("[MCQ Generator]", *args, **kwargs)
 
-# ---------------------------------------------------------------------------
-# Prompt builder
-# ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = textwrap.dedent("""
     You are an expert educational assessment writer. Your task is to generate
     high-quality Multiple Choice Questions (MCQs) from the provided training
     material.
 
-
     Output format — you MUST return ONLY a valid JSON object with no
-    preamble, explanation, or markdown code fences. Do not wrap the JSON in
-    backticks or any other formatting. The JSON must be parseable with
-    json.loads().
+    preamble, explanation, or markdown code fences. The JSON must be parseable
+    with json.loads().
 
     Schema:
     {{
@@ -64,7 +58,6 @@ def build_user_prompt(
     num: int = 5,
     exclude_questions: Optional[List[MCQ]] = None,
 ) -> str:
-    """Wrap the training material inside the user prompt."""
     content = textwrap.dedent(f"""
         Generate {num} Multiple Choice Questions from the following training
         material. Follow the output rules precisely.
@@ -91,10 +84,6 @@ def build_user_prompt(
     return content
 
 
-# ---------------------------------------------------------------------------
-# Core generation function (no Streamlit dependency)
-# ---------------------------------------------------------------------------
-
 def generate_mcqs(
     source_text: str,
     num: int = 5,
@@ -103,23 +92,6 @@ def generate_mcqs(
     api_key: Optional[str] = None,
     exclude_questions: Optional[List[MCQ]] = None,
 ) -> List[MCQ]:
-    """
-    Call the Anthropic Claude API to generate MCQs.
-
-    Args:
-        source_text: Raw extracted text from the uploaded document.
-        num        : Number of questions to generate (default 5).
-        model      : Claude model slug.
-        max_tokens: Max response tokens to allow.
-
-    Returns:
-        List of validated MCQ objects.
-
-    Raises:
-        ValueError: If the API key is missing, the response is unparseable,
-                    or the validation fails after retries.
-        Exception:  Propagated HTTP errors from the Anthropic client.
-    """
     if not api_key:
         raise ValueError(
             "No API key provided. Please enter your Anthropic API key in the sidebar."
@@ -127,13 +99,9 @@ def generate_mcqs(
 
     _log("API key loaded:", api_key[:20] + "...")
 
-    client = Anthropic(
-        # Force official Anthropic API — ignore any proxy env vars
-        base_url="https://api.anthropic.com",
-    )
+    client = Anthropic(base_url="https://api.anthropic.com")
     _log("Anthropic client created, model =", model)
 
-    # Retry up to 2 times on parse/validation errors
     for attempt in range(3):
         _log(f"--- Attempt {attempt + 1}/3 ---")
         try:
@@ -145,7 +113,6 @@ def generate_mcqs(
             traceback.print_exc()
             raise
 
-        # Strategy 1: try raw response directly
         for strategy_name, candidate in [
             ("raw",               raw),
             ("strip_fences",      _extract_json_block(raw)),
@@ -178,7 +145,6 @@ def _call_api(
     max_tokens: int,
     exclude_questions: Optional[List[MCQ]] = None,
 ) -> str:
-    """Make a single Anthropic messages API call and return raw text."""
     response = client.messages.create(
         model=model,
         max_tokens=max_tokens,
@@ -191,51 +157,35 @@ def _call_api(
             }
         ],
     )
-    # Some proxies / model versions return a ThinkingBlock first.
-    # Find the first TextBlock and return its text.
     for block in response.content:
         if hasattr(block, "text"):
-            return block.text  # type: ignore[union-attr]
+            return block.text
     raise ValueError(f"No TextBlock found in response. Blocks: {response.content}")
 
 
 def _extract_json_block(text: str) -> str:
-    """
-    Strip markdown code fences (```json ...```) from a Claude response,
-    leaving only the raw JSON string.
-    """
     text = text.strip()
-    # Strip opening fence: ```json  or  ```JSON  or  ```
     for opener in ("```json", "```JSON", "```"):
         if text.startswith(opener):
-            text = text[len(opener) :]
+            text = text[len(opener):]
             break
-    # Strip closing fence: ```
     if text.strip().endswith("```"):
         text = text.strip()[:-3]
     return text.strip()
 
 
 def _extract_json_anywhere(text: str) -> str:
-    """
-    Last-resort parser: search the entire response for the first
-    balanced JSON object or array and return just that substring.
-    Handles cases where Claude prepends explanatory text.
-    """
     text = text.strip()
 
-    # Try to find a ```json ... ``` block anywhere in the text
     match = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
     if match:
         return match.group(1)
 
-    # Try to find raw {...} starting anywhere
-    # Walk through the string looking for a '{' that starts a balanced object
     for i, ch in enumerate(text):
         if ch == "{":
             try:
                 result = text[i:]
-                json.loads(result)        # validate it parses
+                json.loads(result)
                 return result
             except json.JSONDecodeError:
                 continue
@@ -247,4 +197,4 @@ def _extract_json_anywhere(text: str) -> str:
             except json.JSONDecodeError:
                 continue
 
-    return ""   # couldn't find anything parseable
+    return ""
