@@ -117,7 +117,6 @@ with st.sidebar:
         "Choose Claude model",
         options=[
             ("claude-haiku-4-5", "Haiku 4.5 (fast & cheap)"),
-            ("claude-3-5-haiku-latest", "Haiku 3.5 (stable)"),
             ("claude-sonnet-4-20250514", "Sonnet 4 (balanced)"),
             ("claude-opus-4-20250514", "Opus 4 (best quality)"),
         ],
