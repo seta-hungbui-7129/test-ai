@@ -16,7 +16,7 @@ from services.models import MCQ
 
 st.set_page_config(
     page_title="AI MCQ Generator",
-    page_icon="🧠",
+    page_icon=None,
     layout="centered",
 )
 
@@ -100,7 +100,7 @@ _init_state()
 
 
 with st.sidebar:
-    st.header("🔑 API Key")
+    st.header("API Key")
     api_key_input = st.text_input(
         "Anthropic API Key",
         type="password",
@@ -112,7 +112,7 @@ with st.sidebar:
         st.session_state.api_key = api_key_input
         st.rerun()
 
-    st.header("🤖 Model")
+    st.header("Model")
     model = st.selectbox(
         "Choose Claude model",
         options=[
@@ -129,7 +129,7 @@ with st.sidebar:
         st.session_state.mcqs = []
 
     st.divider()
-    st.header("📄 Upload Training Material")
+    st.header("Upload Training Material")
 
     uploaded_file = st.file_uploader(
         "Supported: .txt, .pdf, .docx",
@@ -152,7 +152,7 @@ with st.sidebar:
 
     if st.session_state.uploaded:
         st.divider()
-        st.caption("📊 Document Stats")
+        st.caption("Document Stats")
         st.metric("Words", f"{st.session_state.word_count:,}")
         st.metric("Characters", f"{st.session_state.char_count:,}")
         preview = st.session_state.document_text[:300]
@@ -160,7 +160,7 @@ with st.sidebar:
             st.text(preview + "…" if len(st.session_state.document_text) > 300 else preview)
 
 
-st.title("🧠 AI MCQ Generator")
+st.title("AI MCQ Generator")
 st.caption("Upload a training document → click Generate → get 5 fresh MCQs instantly.")
 st.divider()
 
@@ -169,7 +169,7 @@ col_btn, col_status = st.columns([1, 2])
 with col_btn:
     generate_disabled = not st.session_state.uploaded or not st.session_state.api_key
     clicked = st.button(
-        "✨ Generate 5 MCQs",
+        "Generate 5 MCQs",
         disabled=generate_disabled,
         use_container_width=True,
         type="primary",
@@ -203,7 +203,7 @@ if clicked:
 
 
 if st.session_state.mcqs:
-    st.subheader(f"📝 {len(st.session_state.mcqs)} Questions Generated")
+    st.subheader(f"{len(st.session_state.mcqs)} Questions Generated")
     st.caption("Each click of **Generate** replaces these with a new set.")
 
     for idx, mcq in enumerate(st.session_state.mcqs, start=1):
@@ -217,7 +217,7 @@ if st.session_state.mcqs:
         <div class="mcq-card">
             <div class="mcq-question">Q{idx}. {mcq.question}</div>
             {options_html}
-            <div class="explanation">💡 Explanation: {mcq.explanation}</div>
+            <div class="explanation">Explanation: {mcq.explanation}</div>
         </div>
         """
         st.markdown(html, unsafe_allow_html=True)
