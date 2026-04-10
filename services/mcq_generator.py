@@ -99,7 +99,7 @@ def generate_mcqs(
 
     _log("API key loaded:", api_key[:20] + "...")
 
-    client = Anthropic(base_url="https://api.anthropic.com")
+    client = Anthropic(api_key=api_key)
     _log("Anthropic client created, model =", model)
 
     for attempt in range(3):

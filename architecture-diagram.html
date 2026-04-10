@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI LMS — MCQ Generator Architecture</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1e1e1e; padding: 20px; font-family: monospace; }
+  svg { display: block; margin: 0 auto; }
+</style>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1280" width="1920" height="1280">
+
+<!-- ============================================================
+     TITLE
+     ============================================================ -->
+<text x="960" y="40" text-anchor="middle" font-size="26" fill="#ffffff" font-weight="bold" font-family="Arial">AI LMS — MCQ Generator: Full Architecture</text>
+<text x="960" y="65" text-anchor="middle" font-size="14" fill="#aaaaaa" font-family="Arial">Streamlit + Services Layer + Anthropic Claude API</text>
+<line x1="300" y1="80" x2="1620" y2="80" stroke="#444" stroke-width="1"/>
+
+<!-- ============================================================
+     LEGEND
+     ============================================================ -->
+<rect x="10" y="100" width="200" height="220" fill="#1a1a2e" stroke="#555" stroke-width="1" rx="8"/>
+<text x="20" y="120" font-size="13" fill="#ffffff" font-weight="bold" font-family="Arial">LEGEND</text>
+<line x1="20" y1="128" x2="200" y2="128" stroke="#555" stroke-width="0.5"/>
+<line x1="20" y1="145" x2="50" y2="145" stroke="#4fc3f7" stroke-width="2" marker-end="url(#arrowBlue)"/>
+<text x="58" y="149" font-size="11" fill="#ccc" font-family="Arial">Data flow</text>
+<line x1="20" y1="165" x2="50" y2="165" stroke="#ff8f00" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#arrowOrange)"/>
+<text x="58" y="169" font-size="11" fill="#ccc" font-family="Arial">State / dependency</text>
+<rect x="20" y="185" width="14" height="14" fill="#e3f2fd" stroke="#1565c0" stroke-width="2" rx="2"/>
+<text x="40" y="197" font-size="11" fill="#ccc" font-family="Arial">Frontend / UI</text>
+<rect x="20" y="205" width="14" height="14" fill="#fff3e0" stroke="#e65100" stroke-width="2" rx="2"/>
+<text x="40" y="217" font-size="11" fill="#ccc" font-family="Arial">Services layer</text>
+<rect x="20" y="225" width="14" height="14" fill="#e8f5e9" stroke="#388e3c" stroke-width="2" rx="2"/>
+<text x="40" y="237" font-size="11" fill="#ccc" font-family="Arial">Document processing</text>
+<rect x="20" y="245" width="14" height="14" fill="#ede7f6" stroke="#4527a0" stroke-width="2" rx="2"/>
+<text x="40" y="257" font-size="11" fill="#ccc" font-family="Arial">External API</text>
+<rect x="20" y="265" width="14" height="14" fill="#fce4ec" stroke="#c62828" stroke-width="2" rx="2"/>
+<text x="40" y="277" font-size="11" fill="#ccc" font-family="Arial">Validation</text>
+
+<!-- ============================================================
+     FRONTEND BOX
+     ============================================================ -->
+<rect x="420" y="95" width="640" height="210" fill="#e3f2fd" stroke="#1565c0" stroke-width="2.5" rx="12"/>
+<text x="740" y="118" text-anchor="middle" font-size="15" fill="#1565c0" font-weight="bold" font-family="Arial">FRONTEND — Streamlit (app.py)</text>
+<line x1="430" y1="126" x2="1050" y2="126" stroke="#90caf9" stroke-width="1"/>
+
+<!-- Session State inside Frontend -->
+<rect x="435" y="134" width="280" height="160" fill="#fff9c4" stroke="#f9a825" stroke-width="1.5" rx="8"/>
+<text x="575" y="152" text-anchor="middle" font-size="12" fill="#f57f17" font-weight="bold" font-family="Arial">Session State</text>
+<line x1="450" y1="158" x2="700" y2="158" stroke="#f9a825" stroke-width="0.5"/>
+<text x="450" y="175" font-size="10.5" fill="#4e342e" font-family="Courier New">
+<tspan x="450" dy="0">api_key     → from sidebar input</tspan>
+<tspan x="450" dy="16">model       → from selectbox</tspan>
+<tspan x="450" dy="16">document_text → after extract_text()</tspan>
+<tspan x="450" dy="16">word_count  → from load_document()</tspan>
+<tspan x="450" dy="16">char_count  → from load_document()</tspan>
+<tspan x="450" dy="16">uploaded    → bool flag</tspan>
+<tspan x="450" dy="16">mcqs        → List[MCQ] returned</tspan>
+</text>
+
+<!-- Sidebar inside Frontend -->
+<rect x="730" y="134" width="170" height="160" fill="#e8f5e9" stroke="#388e3c" stroke-width="1.5" rx="8"/>
+<text x="815" y="152" text-anchor="middle" font-size="12" fill="#2e7d32" font-weight="bold" font-family="Arial">Sidebar</text>
+<line x1="740" y1="158" x2="890" y2="158" stroke="#388e3c" stroke-width="0.5"/>
+<text x="745" y="175" font-size="10.5" fill="#1b5e20" font-family="Courier New">
+<tspan x="745" dy="0">1. API Key input</tspan>
+<tspan x="745" dy="15">   (password, persists)</tspan>
+<tspan x="745" dy="20">2. Model selectbox</tspan>
+<tspan x="745" dy="15">3. File uploader</tspan>
+<tspan x="745" dy="15">   (.txt/.pdf/.docx)</tspan>
+<tspan x="745" dy="20">4. Document stats</tspan>
+</text>
+
+<!-- Main Area inside Frontend -->
+<rect x="915" y="134" width="135" height="160" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="1.5" rx="8"/>
+<text x="982" y="152" text-anchor="middle" font-size="12" fill="#6a1b9a" font-weight="bold" font-family="Arial">Main Area</text>
+<line x1="925" y1="158" x2="1040" y2="158" stroke="#7b1fa2" stroke-width="0.5"/>
+<text x="930" y="175" font-size="10.5" fill="#4a148c" font-family="Courier New">
+<tspan x="930" dy="0">1. Title + caption</tspan>
+<tspan x="930" dy="15">2. Generate button</tspan>
+<tspan x="930" dy="15">   (disabled unless</tspan>
+<tspan x="930" dy="12">   key + doc)</tspan>
+<tspan x="930" dy="18">3. MCQ HTML cards</tspan>
+<tspan x="930" dy="15">4. Error display</tspan>
+</text>
+
+<!-- ============================================================
+     SERVICES LAYER BOX
+     ============================================================ -->
+<rect x="150" y="340" width="1620" height="400" fill="#fff3e0" stroke="#e65100" stroke-width="2.5" rx="12"/>
+<text x="960" y="363" text-anchor="middle" font-size="16" fill="#e65100" font-weight="bold" font-family="Arial">SERVICES LAYER — Pure Python (No Streamlit imports)</text>
+<line x1="160" y1="372" x2="1760" y2="372" stroke="#ff8f00" stroke-width="1"/>
+
+<!-- ============================================================
+     DOCUMENT LOADER BOX
+     ============================================================ -->
+<rect x="170" y="390" width="350" height="330" fill="#e8f5e9" stroke="#388e3c" stroke-width="2" rx="10"/>
+<text x="345" y="412" text-anchor="middle" font-size="14" fill="#2e7d32" font-weight="bold" font-family="Arial">document_loader.py</text>
+<line x1="180" y1="420" x2="510" y2="420" stroke="#a5d6a7" stroke-width="0.5"/>
+
+<!-- extract_text function -->
+<rect x="180" y="430" width="330" height="220" fill="#c8e6c9" stroke="#388e3c" stroke-width="1" rx="6"/>
+<text x="345" y="448" text-anchor="middle" font-size="11" fill="#1b5e20" font-weight="bold" font-family="Courier New">extract_text(bytes, filename)</text>
+<line x1="190" y1="456" x2="500" y2="456" stroke="#388e3c" stroke-width="0.5"/>
+<text x="195" y="475" font-size="10" fill="#2e7d32" font-family="Courier New">
+<tspan x="195" dy="0"># Route by file extension</tspan>
+<tspan x="195" dy="16">├─ .txt  →  _extract_txt()</tspan>
+<tspan x="195" dy="14">│          decode: UTF-8 → latin-1 → cp1252</tspan>
+<tspan x="195" dy="20">├─ .pdf  →  _extract_pdf()</tspan>
+<tspan x="195" dy="14">│          PyPDF2.PdfReader</tspan>
+<tspan x="195" dy="14">│          extract_text() per page</tspan>
+<tspan x="195" dy="20">└─ .docx →  _extract_docx()</tspan>
+<tspan x="195" dy="14">             python-docx.Document</tspan>
+<tspan x="195" dy="14">             non-empty paragraphs</tspan>
+<tspan x="195" dy="20">Raises ValueError if unsupported</tspan>
+</text>
+
+<!-- load_document wrapper -->
+<rect x="180" y="660" width="330" height="50" fill="#a5d6a7" stroke="#388e3c" stroke-width="1" rx="6"/>
+<text x="345" y="678" text-anchor="middle" font-size="10" fill="#1b5e20" font-family="Courier New">load_document(UploadedFile)</text>
+<text x="345" y="696" text-anchor="middle" font-size="10" fill="#1b5e20" font-family="Courier New">Returns: (text, word_count, char_count)</text>
+
+<!-- ============================================================
+     MCQ GENERATOR BOX
+     ============================================================ -->
+<rect x="560" y="390" width="1200" height="330" fill="#e3f2fd" stroke="#1565c0" stroke-width="2" rx="10"/>
+<text x="1160" y="412" text-anchor="middle" font-size="14" fill="#1565c0" font-weight="bold" font-family="Arial">mcq_generator.py</text>
+<line x1="570" y1="420" x2="1750" y2="420" stroke="#90caf9" stroke-width="0.5"/>
+
+<!-- build_user_prompt -->
+<rect x="575" y="430" width="280" height="200" fill="#bbdefb" stroke="#1565c0" stroke-width="1" rx="6"/>
+<text x="715" y="448" text-anchor="middle" font-size="11" fill="#0d47a1" font-weight="bold" font-family="Courier New">build_user_prompt()</text>
+<line x1="585" y1="455" x2="845" y2="455" stroke="#1565c0" stroke-width="0.5"/>
+<text x="590" y="470" font-size="10" fill="#0d47a1" font-family="Courier New">
+<tspan x="590" dy="0"># 1. Wraps training material</tspan>
+<tspan x="590" dy="14">#    inside user message</tspan>
+<tspan x="590" dy="20"># 2. If exclude_questions:</tspan>
+<tspan x="590" dy="14">#    appends "DO NOT REPEAT"</tspan>
+<tspan x="590" dy="14">#    block with all previous</tspan>
+<tspan x="590" dy="14">#    Q + answer pairs</tspan>
+<tspan x="590" dy="20"># 3. SYSTEM_PROMPT defines</tspan>
+<tspan x="590" dy="14">#    JSON schema + rules</tspan>
+</text>
+
+<!-- _call_api -->
+<rect x="575" y="640" width="280" height="70" fill="#bbdefb" stroke="#1565c0" stroke-width="1" rx="6"/>
+<text x="715" y="658" text-anchor="middle" font-size="11" fill="#0d47a1" font-weight="bold" font-family="Courier New">_call_api()</text>
+<line x1="585" y1="665" x2="845" y2="665" stroke="#1565c0" stroke-width="0.5"/>
+<text x="590" y="680" font-size="10" fill="#0d47a1" font-family="Courier New">
+<tspan x="590" dy="0">client.messages.create(</tspan>
+<tspan x="590" dy="12">  model      = "claude-haiku-4-5",</tspan>
+<tspan x="590" dy="12">  max_tokens = 2048,</tspan>
+<tspan x="590" dy="12">  temperature = 0.8,</tspan>
+<tspan x="590" dy="12">  system     = SYSTEM_PROMPT,</tspan>
+<tspan x="590" dy="12">  messages   = [...])</tspan>
+</text>
+
+<!-- generate_mcqs -->
+<rect x="880" y="430" width="380" height="280" fill="#bbdefb" stroke="#1565c0" stroke-width="1" rx="6"/>
+<text x="1070" y="448" text-anchor="middle" font-size="11" fill="#0d47a1" font-weight="bold" font-family="Courier New">generate_mcqs()</text>
+<line x1="890" y1="455" x2="1250" y2="455" stroke="#1565c0" stroke-width="0.5"/>
+<text x="895" y="470" font-size="10" fill="#0d47a1" font-family="Courier New">
+<tspan x="895" dy="0"># 1. Validate api_key provided</tspan>
+<tspan x="895" dy="18"># 2. Create Anthropic client</tspan>
+<tspan x="895" dy="14">#    base_url: api.anthropic.com</tspan>
+<tspan x="895" dy="20"># 3. for attempt in range(3):</tspan>
+<tspan x="895" dy="14">#    raw = _call_api(...)</tspan>
+<tspan x="895" dy="14">#    for strategy in</tspan>
+<tspan x="895" dy="12">#     [raw, strip_fences,</tspan>
+<tspan x="895" dy="12">#      scan_anywhere]:</tspan>
+<tspan x="895" dy="12">#      try: json.loads()</tspan>
+<tspan x="895" dy="12">#          MCQList.validate()</tspan>
+<tspan x="895" dy="12">#          return questions</tspan>
+<tspan x="895" dy="12">#      except: continue</tspan>
+<tspan x="895" dy="18"># 4. All fail → raise ValueError</tspan>
+</text>
+
+<!-- JSON Extraction Strategies -->
+<rect x="1285" y="430" width="465" height="120" fill="#bbdefb" stroke="#1565c0" stroke-width="1" rx="6"/>
+<text x="1517" y="448" text-anchor="middle" font-size="11" fill="#0d47a1" font-weight="bold" font-family="Courier New">JSON Extraction Strategies</text>
+<line x1="1295" y1="455" x2="1740" y2="455" stroke="#1565c0" stroke-width="0.5"/>
+<text x="1300" y="472" font-size="10" fill="#0d47a1" font-family="Courier New">
+<tspan x="1300" dy="0">Strategy 1: raw              → json.loads() direct</tspan>
+<tspan x="1300" dy="16">Strategy 2: strip_fences()   → removes ```json ``` fences</tspan>
+<tspan x="1300" dy="16">Strategy 3: scan_anywhere()  → finds first balanced { or [</tspan>
+<tspan x="1300" dy="16">Each: json.loads() → MCQList.model_validate()</tspan>
+<tspan x="1300" dy="16">Max 9 parse attempts per generation (3 × 3)</tspan>
+</text>
+
+<!-- SYSTEM PROMPT box -->
+<rect x="1285" y="565" width="465" height="145" fill="#bbdefb" stroke="#1565c0" stroke-width="1" rx="6"/>
+<text x="1517" y="583" text-anchor="middle" font-size="11" fill="#0d47a1" font-weight="bold" font-family="Courier New">SYSTEM_PROMPT Rules</text>
+<line x1="1295" y1="590" x2="1740" y2="590" stroke="#1565c0" stroke-width="0.5"/>
+<text x="1300" y="607" font-size="10" fill="#0d47a1" font-family="Courier New">
+<tspan x="1300" dy="0">• Return ONLY JSON (no fences, no explanation)</tspan>
+<tspan x="1300" dy="14">• Exactly 5 questions, each with 4 options</tspan>
+<tspan x="1300" dy="14">• Questions must cover DIFFERENT topics</tspan>
+<tspan x="1300" dy="14">• Answer = one option VERBATIM (no synonyms)</tspan>
+<tspan x="1300" dy="14">• Moderate difficulty (comprehension, not trivia)</tspan>
+<tspan x="1300" dy="14">• If material too short → "limitation" field</tspan>
+</text>
+
+<!-- ============================================================
+     MODELS BOX
+     ============================================================ -->
+<rect x="170" y="740" width="1590" height="200" fill="#fce4ec" stroke="#c62828" stroke-width="2" rx="10"/>
+<text x="965" y="762" text-anchor="middle" font-size="14" fill="#c62828" font-weight="bold" font-family="Arial">models.py — Pydantic Validation</text>
+<line x1="180" y1="770" x2="1750" y2="770" stroke="#ef9a9a" stroke-width="0.5"/>
+
+<!-- MCQ class -->
+<rect x="185" y="780" width="360" height="148" fill="#f8bbd0" stroke="#c62828" stroke-width="1" rx="6"/>
+<text x="365" y="800" text-anchor="middle" font-size="11" fill="#880e4f" font-weight="bold" font-family="Courier New">class MCQ(BaseModel)</text>
+<line x1="195" y1="806" x2="535" y2="806" stroke="#c62828" stroke-width="0.5"/>
+<text x="200" y="822" font-size="10" fill="#880e4f" font-family="Courier New">
+<tspan x="200" dy="0">question:     str  min_length=5</tspan>
+<tspan x="200" dy="16">options:       List[str] exactly 4</tspan>
+<tspan x="200" dy="16">answer:       str must match option</tspan>
+<tspan x="200" dy="16">explanation:   str min_length=10</tspan>
+<tspan x="200" dy="20">model_post_init():</tspan>
+<tspan x="200" dy="14">  if answer ∉ options:</tspan>
+<tspan x="200" dy="14">    raise ValueError</tspan>
+</text>
+
+<!-- MCQList class -->
+<rect x="565" y="780" width="360" height="148" fill="#f8bbd0" stroke="#c62828" stroke-width="1" rx="6"/>
+<text x="745" y="800" text-anchor="middle" font-size="11" fill="#880e4f" font-weight="bold" font-family="Courier New">class MCQList(BaseModel)</text>
+<line x1="575" y1="806" x2="915" y2="806" stroke="#c62828" stroke-width="0.5"/>
+<text x="580" y="822" font-size="10" fill="#880e4f" font-family="Courier New">
+<tspan x="580" dy="0">questions: List[MCQ]</tspan>
+<tspan x="580" dy="16">             min_length=5</tspan>
+<tspan x="580" dy="16">             max_length=5</tspan>
+<tspan x="580" dy="24">On validation failure:</tspan>
+<tspan x="580" dy="14">  → Caught in retry loop</tspan>
+<tspan x="580" dy="14">  → Fresh API call made</tspan>
+<tspan x="580" dy="14">  → Up to 3 total attempts</tspan>
+</text>
+
+<!-- Validation Rules -->
+<rect x="945" y="780" width="800" height="148" fill="#f8bbd0" stroke="#c62828" stroke-width="1" rx="6"/>
+<text x="1345" y="800" text-anchor="middle" font-size="11" fill="#880e4f" font-weight="bold" font-family="Courier New">Why Pydantic? LLM Output Is Untrusted</text>
+<line x1="955" y1="806" x2="1735" y2="806" stroke="#c62828" stroke-width="0.5"/>
+<text x="960" y="822" font-size="10" fill="#880e4f" font-family="Courier New">
+<tspan x="960" dy="0">Claude can return malformed JSON, wrong schema, wrong field names,</tspan>
+<tspan x="960" dy="14">extra fields, missing fields, or answer not in options.</tspan>
+<tspan x="960" dy="20">Pydantic catches ALL of these → triggers retry → resilient pipeline.</tspan>
+<tspan x="960" dy="20">This is a core AI engineering pattern: NEVER trust model output</tspan>
+<tspan x="960" dy="14">without schema validation. Never assume the LLM is correct.</tspan>
+</text>
+
+<!-- ============================================================
+     EXTERNAL API BOX
+     ============================================================ -->
+<rect x="300" y="970" width="1320" height="180" fill="#ede7f6" stroke="#4527a0" stroke-width="2.5" rx="12"/>
+<text x="960" y="993" text-anchor="middle" font-size="16" fill="#4527a0" font-weight="bold" font-family="Arial">EXTERNAL API — Anthropic Claude Messages API</text>
+<line x1="310" y1="1002" x2="1610" y2="1002" stroke="#b39ddb" stroke-width="1"/>
+
+<text x="320" y="1020" font-size="11" fill="#4527a0" font-weight="bold" font-family="Arial">HTTPS POST → https://api.anthropic.com/v1/messages</text>
+
+<rect x="320" y="1030" width="400" height="110" fill="#d1c4e9" stroke="#4527a0" stroke-width="1" rx="6"/>
+<text x="520" y="1047" text-anchor="middle" font-size="11" fill="#311b92" font-weight="bold" font-family="Courier New">Request Headers</text>
+<line x1="330" y1="1053" x2="710" y2="1053" stroke="#4527a0" stroke-width="0.5"/>
+<text x="335" y="1070" font-size="10" fill="#311b92" font-family="Courier New">
+<tspan x="335" dy="0">Authorization: Bearer &lt;user API key&gt;</tspan>
+<tspan x="335" dy="14">Content-Type:  application/json</tspan>
+<tspan x="335" dy="14">x-api-key:     &lt;same key&gt;</tspan>
+</text>
+
+<rect x="740" y="1030" width="450" height="110" fill="#d1c4e9" stroke="#4527a0" stroke-width="1" rx="6"/>
+<text x="965" y="1047" text-anchor="middle" font-size="11" fill="#311b92" font-weight="bold" font-family="Courier New">Request Body</text>
+<line x1="750" y1="1053" x2="1180" y2="1053" stroke="#4527a0" stroke-width="0.5"/>
+<text x="755" y="1070" font-size="10" fill="#311b92" font-family="Courier New">
+<tspan x="755" dy="0">model:       "claude-haiku-4-5" | "claude-sonnet-4" | "claude-opus-4"</tspan>
+<tspan x="755" dy="14">max_tokens:  2048</tspan>
+<tspan x="755" dy="14">temperature: 0.8</tspan>
+<tspan x="755" dy="14">system:      SYSTEM_PROMPT (JSON schema + rules)</tspan>
+<tspan x="755" dy="14">messages:    [{"role":"user", "content": &lt;user prompt&gt;}]</tspan>
+</text>
+
+<rect x="1210" y="1030" width="395" height="110" fill="#d1c4e9" stroke="#4527a0" stroke-width="1" rx="6"/>
+<text x="1407" y="1047" text-anchor="middle" font-size="11" fill="#311b92" font-weight="bold" font-family="Courier New">Response</text>
+<line x1="1220" y1="1053" x2="1595" y2="1053" stroke="#4527a0" stroke-width="0.5"/>
+<text x="1225" y="1070" font-size="10" fill="#311b92" font-family="Courier New">
+<tspan x="1225" dy="0">HTTP 200</tspan>
+<tspan x="1225" dy="14">content: [TextBlock(text='&lt;raw JSON&gt;'), ...]</tspan>
+<tspan x="1225" dy="14">Stop reason: end_turn | max_tokens</tspan>
+<tspan x="1225" dy="14">If parse/validate fails → Python-side retry (up to 3×)</tspan>
+</text>
+
+<!-- ============================================================
+     DEEP DIVE BOXES (right side)
+     ============================================================ -->
+
+<!-- Retry Flow -->
+<rect x="1790" y="340" width="400" height="300" fill="#fff8e1" stroke="#ff8f00" stroke-width="2" rx="10"/>
+<text x="1990" y="362" text-anchor="middle" font-size="13" fill="#e65100" font-weight="bold" font-family="Arial">Deep Dive: Retry + Parse Flow</text>
+<line x1="1800" y1="370" x2="2180" y2="370" stroke="#ff8f00" stroke-width="0.5"/>
+<text x="1805" y="385" font-size="10" fill="#e65100" font-family="Courier New">
+<tspan x="1805" dy="0">generate_mcqs()</tspan>
+<tspan x="1805" dy="12">──────────────────────────</tspan>
+<tspan x="1805" dy="12">for attempt in range(3):</tspan>
+<tspan x="1805" dy="10">  raw = _call_api(...)</tspan>
+<tspan x="1805" dy="14">  for strategy in [</tspan>
+<tspan x="1805" dy="10">    raw, strip_fences,</tspan>
+<tspan x="1805" dy="10">    scan_anywhere]:</tspan>
+<tspan x="1805" dy="12">    try:</tspan>
+<tspan x="1805" dy="10">      json.loads(candidate)</tspan>
+<tspan x="1805" dy="10">      MCQList.validate(data)</tspan>
+<tspan x="1805" dy="10">      return questions ← EXIT</tspan>
+<tspan x="1805" dy="10">    except:</tspan>
+<tspan x="1805" dy="10">      continue</tspan>
+<tspan x="1805" dy="12">  if attempt == 2:</tspan>
+<tspan x="1805" dy="10">    raise ValueError</tspan>
+<tspan x="1805" dy="16">──────────────────────────</tspan>
+<tspan x="1805" dy="12">Attempt 1 → 3 parse strategies</tspan>
+<tspan x="1805" dy="10">Attempt 2 → 3 parse strategies</tspan>
+<tspan x="1805" dy="10">Attempt 3 → 3 parse strategies</tspan>
+<tspan x="1805" dy="12">Total: 9 parse attempts</tspan>
+<tspan x="1805" dy="10">1 way to succeed</tspan>
+</text>
+
+<!-- Temperature & Models -->
+<rect x="1790" y="660" width="400" height="200" fill="#e8f5e9" stroke="#388e3c" stroke-width="2" rx="10"/>
+<text x="1990" y="682" text-anchor="middle" font-size="13" fill="#2e7d32" font-weight="bold" font-family="Arial">Deep Dive: Temperature &amp; Models</text>
+<line x1="1800" y1="690" x2="2180" y2="690" stroke="#388e3c" stroke-width="0.5"/>
+<text x="1805" y="705" font-size="10" fill="#2e7d32" font-family="Courier New">
+<tspan x="1805" dy="0">temperature = 0.8</tspan>
+<tspan x="1805" dy="12">────────────────────────────────</tspan>
+<tspan x="1805" dy="12">0.0  →  Deterministic (same input = same output)</tspan>
+<tspan x="1805" dy="12">0.3  →  Low variety, high accuracy</tspan>
+<tspan x="1805" dy="12">0.8  →  RECOMMENDED: variety + quality ✓</tspan>
+<tspan x="1805" dy="12">1.0  →  Max randomness, quality risk</tspan>
+<tspan x="1805" dy="18">────────────────────────────────</tspan>
+<tspan x="1805" dy="12">├─ Haiku 4.5  →  Fastest, cheapest (default)</tspan>
+<tspan x="1805" dy="10">├─ Sonnet 4   →  Better reasoning</tspan>
+<tspan x="1805" dy="10">└─ Opus 4     →  Best quality, costly</tspan>
+</text>
+
+<!-- Deduplication -->
+<rect x="1790" y="880" width="400" height="220" fill="#fce4ec" stroke="#c62828" stroke-width="2" rx="10"/>
+<text x="1990" y="902" text-anchor="middle" font-size="13" fill="#c62828" font-weight="bold" font-family="Arial">Deep Dive: Deduplication</text>
+<line x1="1800" y1="910" x2="2180" y2="910" stroke="#c62828" stroke-width="0.5"/>
+<text x="1805" y="925" font-size="10" fill="#c62828" font-family="Courier New">
+<tspan x="1805" dy="0">How repetition is prevented</tspan>
+<tspan x="1805" dy="12">────────────────────────────────</tspan>
+<tspan x="1805" dy="12">Click 1: mcqs = []</tspan>
+<tspan x="1805" dy="10">  → API receives no exclusion list</tspan>
+<tspan x="1805" dy="10">  → Generates Q1-Q5</tspan>
+<tspan x="1805" dy="14">Click 2: mcqs = [Q1-Q5]</tspan>
+<tspan x="1805" dy="10">  → Passed as exclude_questions</tspan>
+<tspan x="1805" dy="10">  → Prompt appends "DO NOT REPEAT: Q1..Q5"</tspan>
+<tspan x="1805" dy="10">  → Model forced to generate Q6-Q10</tspan>
+<tspan x="1805" dy="14">Click N: same pattern repeats</tspan>
+<tspan x="1805" dy="10">  → All previous questions excluded</tspan>
+<tspan x="1805" dy="10">  → Exhausts topics naturally when done</tspan>
+</text>
+
+<!-- Session State -->
+<rect x="1790" y="1120" width="400" height="160" fill="#e3f2fd" stroke="#1565c0" stroke-width="2" rx="10"/>
+<text x="1990" y="1142" text-anchor="middle" font-size="13" fill="#1565c0" font-weight="bold" font-family="Arial">Deep Dive: Session State</text>
+<line x1="1800" y1="1150" x2="2180" y2="1150" stroke="#1565c0" stroke-width="0.5"/>
+<text x="1805" y="1165" font-size="10" fill="#0d47a1" font-family="Courier New">
+<tspan x="1805" dy="0">_init_state() runs once on import</tspan>
+<tspan x="1805" dy="12">────────────────────────────────</tspan>
+<tspan x="1805" dy="12">API key change    → st.rerun()</tspan>
+<tspan x="1805" dy="10">Model change      → clear mcqs</tspan>
+<tspan x="1805" dy="10">New file upload   → clear mcqs</tspan>
+<tspan x="1805" dy="10">Generate click    → replace mcqs (not append!)</tspan>
+<tspan x="1805" dy="14">exclude_questions carries history forward</tspan>
+</text>
+
+<!-- ============================================================
+     ARROWS (Flow)
+     ============================================================ -->
+
+<!-- Arrow: Frontend → Services Layer -->
+<line x1="740" y1="305" x2="740" y2="335" stroke="#1565c0" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+<text x="760" y="322" font-size="11" fill="#1565c0" font-family="Arial">Python function calls</text>
+
+<!-- Arrow: File Upload → Document Loader -->
+<line x1="345" y1="305" x2="345" y2="385" stroke="#388e3c" stroke-width="2" marker-end="url(#arrowGreen)"/>
+<text x="360" y="348" font-size="11" fill="#388e3c" font-family="Arial">1. Upload file</text>
+
+<!-- Arrow: Document Loader → MCQ Generator (text) -->
+<line x1="520" y1="555" x2="555" y2="555" stroke="#e65100" stroke-width="2" marker-end="url(#arrowOrange)"/>
+<text x="528" y="546" font-size="11" fill="#e65100" font-family="Arial">2. Extract text</text>
+
+<!-- Arrow: MCQ Generator → External API -->
+<line x1="1160" y1="720" x2="1160" y2="965" stroke="#4527a0" stroke-width="2.5" marker-end="url(#arrowPurple)"/>
+<text x="1175" y="845" font-size="11" fill="#4527a0" font-family="Arial">5. HTTPS call</text>
+
+<!-- Arrow: MCQ Generator → Return to Frontend -->
+<line x1="740" y1="340" x2="740" y2="305" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowBlue)"/>
+<text x="755" y="322" font-size="11" fill="#1565c0" font-family="Arial">4. Render HTML cards</text>
+
+<!-- Arrow: Return List[MCQ] from services to session -->
+<line x1="1160" y1="720" x2="1160" y2="770" stroke="#f57f17" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrowOrange)"/>
+<text x="1175" y="748" font-size="10" fill="#f57f17" font-family="Arial">3. Return List[MCQ]</text>
+
+<!-- Arrow: mcqs feeds into exclude_questions -->
+<line x1="740" y1="305" x2="575" y2="555" stroke="#f57f17" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrowOrange)"/>
+<text x="590" y="435" font-size="9.5" fill="#f57f17" font-family="Arial">exclude_questions</text>
+<text x="590" y="448" font-size="9.5" fill="#f57f17" font-family="Arial">(session_state.mcqs)</text>
+
+<!-- ============================================================
+     MARKER DEFS
+     ============================================================ -->
+<defs>
+<marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+<path d="M0,0 L0,6 L9,3 z" fill="#1565c0"/>
+</marker>
+<marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+<path d="M0,0 L0,6 L9,3 z" fill="#ff8f00"/>
+</marker>
+<marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+<path d="M0,0 L0,6 L9,3 z" fill="#388e3c"/>
+</marker>
+<marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+<path d="M0,0 L0,6 L9,3 z" fill="#4527a0"/>
+</marker>
+</defs>
+
+</svg>
+</body>
+</html>
