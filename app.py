@@ -91,6 +91,7 @@ def _init_state():
         "uploaded": False,
         "api_key": "",
         "model": "claude-haiku-4-5",
+        "max_tokens": 2048,
     }
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
@@ -127,6 +128,19 @@ with st.sidebar:
     if "model" not in st.session_state or st.session_state.model != selected_model:
         st.session_state.model = selected_model
         st.session_state.mcqs = []
+
+    st.divider()
+    st.header("Max Output Tokens")
+    max_tokens = st.slider(
+        "Max tokens per generation",
+        min_value=512,
+        max_value=8192,
+        value=st.session_state.max_tokens,
+        step=256,
+        help="Higher values allow longer / more-detailed answers. 2048 is enough for 5 MCQs.",
+    )
+    if max_tokens != st.session_state.max_tokens:
+        st.session_state.max_tokens = max_tokens
 
     st.divider()
     st.header("Upload Training Material")
@@ -190,6 +204,7 @@ if clicked:
                 num=5,
                 api_key=st.session_state.api_key,
                 model=st.session_state.model,
+                max_tokens=st.session_state.max_tokens,
                 exclude_questions=st.session_state.mcqs,
             )
             st.session_state.mcqs = mcqs
