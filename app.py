@@ -217,10 +217,16 @@ if clicked:
             st.rerun()
         except ValueError as exc:
             st.error(str(exc))
-            st.code(traceback.format_exc(), language="text")
         except Exception as exc:
-            st.error(f"Unexpected error: {exc}")
-            st.code(traceback.format_exc(), language="text")
+            # Catch common API errors to show clean messages
+            error_msg = str(exc)
+            if "authentication_error" in error_msg.lower() or "401" in error_msg:
+                st.error("🔑 **Invalid API Key**: The Anthropic API key you entered is either incorrect or inactive. Please check your key at [console.anthropic.com](https://console.anthropic.com) and try again.")
+            elif "rate_limit_error" in error_msg.lower() or "429" in error_msg:
+                st.error("⏳ **Rate Limit Reached**: You've hit the API limit for this model. Please **wait 60 seconds** before trying again. \n\n*Tip: Switch to **Haiku 4.5** in the sidebar for higher limits and faster generation during your demo.*")
+            else:
+                st.error(f"Unexpected error: {exc}")
+                st.code(traceback.format_exc(), language="text")
 
 
 if st.session_state.mcqs:
