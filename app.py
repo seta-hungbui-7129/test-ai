@@ -167,6 +167,12 @@ with st.sidebar:
     if st.session_state.uploaded:
         st.divider()
         st.caption("Document Stats")
+
+        # Truncation warning
+        CHAR_LIMIT = 600_000
+        if st.session_state.char_count > CHAR_LIMIT:
+            st.warning(f"⚠️ Document is very large ({st.session_state.char_count:,} chars). The AI will process the first {CHAR_LIMIT:,} characters to ensure stable generation.")
+
         st.metric("Words", f"{st.session_state.word_count:,}")
         st.metric("Characters", f"{st.session_state.char_count:,}")
         preview = st.session_state.document_text[:300]

@@ -102,6 +102,13 @@ def generate_mcqs(
     client = Anthropic(api_key=api_key)
     _log("Anthropic client created, model =", model)
 
+    # Context window safety: Truncate document if it's too large
+    # 200k tokens is roughly 800k chars. We cap at 600k to be safe.
+    CHAR_LIMIT = 600_000
+    if len(source_text) > CHAR_LIMIT:
+        _log(f"Document too large ({len(source_text)} chars). Truncating to {CHAR_LIMIT}.")
+        source_text = source_text[:CHAR_LIMIT] + "\n\n[DOCUMENT TRUNCATED DUE TO SIZE LIMITS]"
+
     for attempt in range(3):
         _log(f"--- Attempt {attempt + 1}/3 ---")
         try:
