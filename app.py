@@ -1,14 +1,11 @@
 """
 AI LMS — MCQ Generator
-Streamlit UI entry point.
-
-Run:
-    pip install -r requirements.txt
-    streamlit run app.py
+Streamlit UI entry point (Batch Processing & Rate Limit Optimized).
 """
 
 import streamlit as st
 import traceback
+import random
 
 from services.document_loader import load_document
 from services.mcq_generator import generate_mcqs
@@ -84,14 +81,13 @@ st.markdown(
 
 def _init_state():
     defaults = {
-        "document_text": "",
+        "document_pages": [],
         "word_count": 0,
         "char_count": 0,
         "mcqs": [],
         "uploaded": False,
         "api_key": "",
         "model": "claude-haiku-4-5",
-        "max_tokens": 2048,
     }
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
@@ -114,13 +110,14 @@ with st.sidebar:
         st.rerun()
 
     st.header("Model")
+    model_options = [
+        ("claude-haiku-4-5", "Haiku 4.5 (fast & cheap)"),
+        ("claude-sonnet-4-20250514", "Sonnet 4 (balanced)"),
+        ("claude-opus-4-20250514", "Opus 4 (best quality)"),
+    ]
     model = st.selectbox(
         "Choose Claude model",
-        options=[
-            ("claude-haiku-4-5", "Haiku 4.5 (fast & cheap)"),
-            ("claude-sonnet-4-20250514", "Sonnet 4 (balanced)"),
-            ("claude-opus-4-20250514", "Opus 4 (best quality)"),
-        ],
+        options=model_options,
         format_func=lambda x: x[1],
         index=0,
     )
@@ -128,19 +125,6 @@ with st.sidebar:
     if "model" not in st.session_state or st.session_state.model != selected_model:
         st.session_state.model = selected_model
         st.session_state.mcqs = []
-
-    st.divider()
-    st.header("Max Output Tokens")
-    max_tokens = st.slider(
-        "Max tokens per generation",
-        min_value=512,
-        max_value=8192,
-        value=st.session_state.max_tokens,
-        step=256,
-        help="Higher values allow longer / more-detailed answers. 2048 is enough for 5 MCQs.",
-    )
-    if max_tokens != st.session_state.max_tokens:
-        st.session_state.max_tokens = max_tokens
 
     st.divider()
     st.header("Upload Training Material")
@@ -154,8 +138,8 @@ with st.sidebar:
     if uploaded_file is not None and not st.session_state.uploaded:
         with st.spinner("Extracting text…"):
             try:
-                text, words, chars = load_document(uploaded_file)
-                st.session_state.document_text = text
+                pages, words, chars = load_document(uploaded_file)
+                st.session_state.document_pages = pages
                 st.session_state.word_count = words
                 st.session_state.char_count = chars
                 st.session_state.uploaded = True
@@ -168,20 +152,20 @@ with st.sidebar:
         st.divider()
         st.caption("Document Stats")
 
-        # Truncation warning
-        CHAR_LIMIT = 600_000
-        if st.session_state.char_count > CHAR_LIMIT:
-            st.warning(f"⚠️ Document is very large ({st.session_state.char_count:,} chars). The AI will process the first {CHAR_LIMIT:,} characters to ensure stable generation.")
-
+        total_pages = len(st.session_state.document_pages)
+        st.metric("Total Pages (approx)", f"{total_pages:,}")
         st.metric("Words", f"{st.session_state.word_count:,}")
-        st.metric("Characters", f"{st.session_state.char_count:,}")
-        preview = st.session_state.document_text[:300]
-        with st.expander("🔍 Text preview (first 300 chars)"):
-            st.text(preview + "…" if len(st.session_state.document_text) > 300 else preview)
+        
+        if total_pages > 20:
+            st.info("💡 **Batching Enabled**: Since the document is large, the AI will process a random **20-page window** per click to stay within Rate Limits.")
+
+        preview_text = st.session_state.document_pages[0][:300] if st.session_state.document_pages else ""
+        with st.expander("🔍 Text preview (Page 1)"):
+            st.text(preview_text + "…" if len(preview_text) >= 300 else preview_text)
 
 
 st.title("AI MCQ Generator")
-st.caption("Upload a training document → click Generate → get 5 fresh MCQs instantly.")
+st.caption("Upload a training document → click Generate → get fresh MCQs instantly.")
 st.divider()
 
 col_btn, col_status = st.columns([1, 2])
@@ -203,35 +187,49 @@ if generate_disabled:
             st.info("⬆️ Upload a document first to enable generation.")
 
 if clicked:
-    with st.spinner("🤖 AI is reading the document and generating questions…"):
+    with st.spinner("🤖 AI is reading a 20-page batch and generating questions…"):
         try:
+            # WINDOWING LOGIC for Rate Limit optimization
+            pages = st.session_state.document_pages
+            WINDOW_SIZE = 20
+            
+            if len(pages) <= WINDOW_SIZE:
+                source_text = "\n".join(pages)
+                batch_info = "Full Document"
+            else:
+                # Pick a random starting point for variety
+                start = random.randint(0, len(pages) - WINDOW_SIZE)
+                source_text = "\n".join(pages[start : start + WINDOW_SIZE])
+                batch_info = f"Pages {start+1} to {start+WINDOW_SIZE}"
+
             mcqs = generate_mcqs(
-                st.session_state.document_text,
+                source_text,
                 num=5,
                 api_key=st.session_state.api_key,
                 model=st.session_state.model,
-                max_tokens=st.session_state.max_tokens,
                 exclude_questions=st.session_state.mcqs,
             )
             st.session_state.mcqs = mcqs
+            # Store batch info in session state for UI if needed
+            st.session_state["last_batch"] = batch_info
             st.rerun()
         except ValueError as exc:
             st.error(str(exc))
         except Exception as exc:
-            # Catch common API errors to show clean messages
             error_msg = str(exc)
             if "authentication_error" in error_msg.lower() or "401" in error_msg:
-                st.error("🔑 **Invalid API Key**: The Anthropic API key you entered is either incorrect or inactive. Please check your key at [console.anthropic.com](https://console.anthropic.com) and try again.")
+                st.error("🔑 **Invalid API Key**: Check your key at console.anthropic.com")
             elif "rate_limit_error" in error_msg.lower() or "429" in error_msg:
-                st.error("⏳ **Rate Limit Reached**: You've hit the API limit for this model. Please **wait 60 seconds** before trying again. \n\n*Tip: Switch to **Haiku 4.5** in the sidebar for higher limits and faster generation during your demo.*")
+                st.error("⏳ **Rate Limit Reached**: Even with batching, you hit the limit. Wait 30s. \n\n*Tip: Large documents consume a lot of TPM. Haiku 4.5 is recommended.*")
             else:
                 st.error(f"Unexpected error: {exc}")
                 st.code(traceback.format_exc(), language="text")
 
 
 if st.session_state.mcqs:
-    st.subheader(f"{len(st.session_state.mcqs)} Questions Generated")
-    st.caption("Each click of **Generate** replaces these with a new set.")
+    batch_str = f" (from {st.session_state.last_batch})" if "last_batch" in st.session_state else ""
+    st.subheader(f"{len(st.session_state.mcqs)} Questions Generated{batch_str}")
+    st.caption("Each click of **Generate** picks a fresh window of content.")
 
     for idx, mcq in enumerate(st.session_state.mcqs, start=1):
         labels = ["A", "B", "C", "D"]

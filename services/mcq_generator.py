@@ -88,10 +88,10 @@ def generate_mcqs(
     source_text: str,
     num: int = 5,
     model: str = "claude-haiku-4-5",
-    max_tokens: int = 2048,
     api_key: Optional[str] = None,
     exclude_questions: Optional[List[MCQ]] = None,
 ) -> List[MCQ]:
+    max_tokens = 4096 # High enough for any generation
     if not api_key:
         raise ValueError(
             "No API key provided. Please enter your Anthropic API key in the sidebar."
@@ -155,7 +155,7 @@ def _call_api(
     response = client.messages.create(
         model=model,
         max_tokens=max_tokens,
-        temperature=0.8,
+        temperature=0.1,
         system=SYSTEM_PROMPT.format(num=num),
         messages=[
             {

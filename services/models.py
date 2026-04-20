@@ -20,4 +20,4 @@ class MCQ(BaseModel):
 
 
 class MCQList(BaseModel):
-    questions: List[MCQ] = Field(..., min_length=5, max_length=5)
+    questions: List[MCQ] = Field(..., min_length=1, max_length=10)

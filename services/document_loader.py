@@ -4,36 +4,43 @@ Supports: .txt, .pdf, .docx
 """
 
 import io
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 
-def extract_text(file_bytes: bytes, filename: str) -> str:
+def extract_pages(file_bytes: bytes, filename: str) -> List[str]:
     ext = filename.lower().split(".")[-1]
 
     if ext == "txt":
-        return _extract_txt(file_bytes)
+        return _extract_txt_pages(file_bytes)
     elif ext == "pdf":
-        return _extract_pdf(file_bytes)
+        return _extract_pdf_pages(file_bytes)
     elif ext in ("docx", "doc"):
-        return _extract_docx(file_bytes)
+        return _extract_docx_pages(file_bytes)
     else:
         raise ValueError(
             f"Unsupported file type: .{ext}  |  Supported: .txt, .pdf, .docx"
         )
 
 
-def _extract_txt(data: bytes) -> str:
+def _extract_txt_pages(data: bytes, chars_per_page: int = 3000) -> List[str]:
+    text = ""
     for encoding in ("utf-8", "latin-1", "cp1252"):
         try:
-            return data.decode(encoding)
+            text = data.decode(encoding)
+            break
         except UnicodeDecodeError:
             continue
-    raise ValueError("Could not decode .txt file with any known encoding.")
+    
+    if not text:
+        raise ValueError("Could not decode .txt file with any known encoding.")
+
+    # Split into rough "pages"
+    return [text[i : i + chars_per_page] for i in range(0, len(text), chars_per_page)]
 
 
-def _extract_pdf(data: bytes) -> str:
+def _extract_pdf_pages(data: bytes) -> List[str]:
     try:
         from PyPDF2 import PdfReader
     except ImportError as exc:
@@ -50,10 +57,10 @@ def _extract_pdf(data: bytes) -> str:
 
     if not pages:
         raise ValueError("PDF contains no extractable text (may be image-based).")
-    return "\n\n".join(pages)
+    return pages
 
 
-def _extract_docx(data: bytes) -> str:
+def _extract_docx_pages(data: bytes, paragraphs_per_page: int = 15) -> List[str]:
     try:
         from docx import Document as DocxDocument
     except ImportError as exc:
@@ -63,12 +70,19 @@ def _extract_docx(data: bytes) -> str:
 
     doc = DocxDocument(io.BytesIO(data))
     paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-    return "\n".join(paragraphs)
+    
+    # Split paragraphs into rough pages
+    pages = []
+    for i in range(0, len(paragraphs), paragraphs_per_page):
+        pages.append("\n".join(paragraphs[i : i + paragraphs_per_page]))
+    
+    return pages
 
 
-def load_document(uploaded_file: Union[UploadedFile, None]) -> Tuple[str, int, int]:
+def load_document(uploaded_file: Union[UploadedFile, None]) -> Tuple[List[str], int, int]:
     if uploaded_file is None:
         raise ValueError("No file was uploaded. Please upload a document first.")
 
-    text = extract_text(uploaded_file.getvalue(), uploaded_file.name)
-    return text, len(text.split()), len(text)
+    pages = extract_pages(uploaded_file.getvalue(), uploaded_file.name)
+    full_text = "\n".join(pages)
+    return pages, len(full_text.split()), len(full_text)
