@@ -86,6 +86,7 @@ def _init_state():
         "char_count": 0,
         "mcqs": [],
         "uploaded": False,
+        "current_file": None,
         "api_key": "",
         "model": "claude-haiku-4-5",
     }
@@ -135,7 +136,15 @@ with st.sidebar:
         help="Upload your training document. The AI will read it to generate MCQs.",
     )
 
-    if uploaded_file is not None and not st.session_state.uploaded:
+    # Detect if file changed
+    if uploaded_file is None:
+        if st.session_state.uploaded:
+            st.session_state.uploaded = False
+            st.session_state.current_file = None
+            st.session_state.document_pages = []
+            st.session_state.mcqs = []
+            st.rerun()
+    elif uploaded_file.name != st.session_state.current_file:
         with st.spinner("Extracting text…"):
             try:
                 pages, words, chars = load_document(uploaded_file)
@@ -143,10 +152,13 @@ with st.sidebar:
                 st.session_state.word_count = words
                 st.session_state.char_count = chars
                 st.session_state.uploaded = True
+                st.session_state.current_file = uploaded_file.name
                 st.session_state.mcqs = []
                 st.success("Document loaded successfully!")
             except Exception as exc:
                 st.error(f"Failed to read file: {exc}")
+                st.session_state.uploaded = False
+                st.session_state.current_file = None
 
     if st.session_state.uploaded:
         st.divider()
@@ -189,7 +201,6 @@ if generate_disabled:
 if clicked:
     with st.spinner("🤖 AI is reading a 20-page batch and generating questions…"):
         try:
-            # WINDOWING LOGIC for Rate Limit optimization
             pages = st.session_state.document_pages
             WINDOW_SIZE = 20
             
@@ -197,22 +208,29 @@ if clicked:
                 source_text = "\n".join(pages)
                 batch_info = "Full Document"
             else:
-                # Pick a random starting point for variety
                 start = random.randint(0, len(pages) - WINDOW_SIZE)
                 source_text = "\n".join(pages[start : start + WINDOW_SIZE])
                 batch_info = f"Pages {start+1} to {start+WINDOW_SIZE}"
 
-            mcqs = generate_mcqs(
+            # Call API
+            mcq_response = generate_mcqs(
                 source_text,
                 num=5,
                 api_key=st.session_state.api_key,
                 model=st.session_state.model,
                 exclude_questions=st.session_state.mcqs,
             )
-            st.session_state.mcqs = mcqs
-            # Store batch info in session state for UI if needed
+            
+            # Handle limitation
+            if mcq_response.limitation:
+                st.warning(f"⚠️ **AI Limitation**: {mcq_response.limitation}")
+                if not mcq_response.questions:
+                    st.stop()
+            
+            st.session_state.mcqs = mcq_response.questions
             st.session_state["last_batch"] = batch_info
             st.rerun()
+            
         except ValueError as exc:
             st.error(str(exc))
         except Exception as exc:
@@ -220,7 +238,7 @@ if clicked:
             if "authentication_error" in error_msg.lower() or "401" in error_msg:
                 st.error("🔑 **Invalid API Key**: Check your key at console.anthropic.com")
             elif "rate_limit_error" in error_msg.lower() or "429" in error_msg:
-                st.error("⏳ **Rate Limit Reached**: Even with batching, you hit the limit. Wait 30s. \n\n*Tip: Large documents consume a lot of TPM. Haiku 4.5 is recommended.*")
+                st.error("⏳ **Rate Limit Reached**: Even with batching, you hit the limit. Wait 30s.")
             else:
                 st.error(f"Unexpected error: {exc}")
                 st.code(traceback.format_exc(), language="text")

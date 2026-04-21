@@ -133,7 +133,7 @@ def generate_mcqs(
                 data = json.loads(candidate)
                 mcq_list = MCQList.model_validate(data)
                 _log(f"  [{strategy_name}] → SUCCESS, {len(mcq_list.questions)} questions")
-                return mcq_list.questions
+                return mcq_list
             except Exception as exc:
                 _log(f"  [{strategy_name}] → FAILED:", exc)
 
