@@ -3,7 +3,7 @@ Pydantic schemas for MCQ data structures.
 """
 
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 
 
 class MCQ(BaseModel):
@@ -20,4 +20,5 @@ class MCQ(BaseModel):
 
 
 class MCQList(BaseModel):
-    questions: List[MCQ] = Field(..., min_length=1, max_length=10)
+    questions: List[MCQ] = Field(default_factory=list, max_length=10)
+    limitation: Optional[str] = Field(None, description="Reason why questions couldn't be generated")

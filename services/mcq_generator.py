@@ -90,7 +90,7 @@ def generate_mcqs(
     model: str = "claude-haiku-4-5",
     api_key: Optional[str] = None,
     exclude_questions: Optional[List[MCQ]] = None,
-) -> List[MCQ]:
+) -> MCQList:
     max_tokens = 4096 # High enough for any generation
     if not api_key:
         raise ValueError(

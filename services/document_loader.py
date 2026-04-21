@@ -13,15 +13,21 @@ def extract_pages(file_bytes: bytes, filename: str) -> List[str]:
     ext = filename.lower().split(".")[-1]
 
     if ext == "txt":
-        return _extract_txt_pages(file_bytes)
+        pages = _extract_txt_pages(file_bytes)
     elif ext == "pdf":
-        return _extract_pdf_pages(file_bytes)
+        pages = _extract_pdf_pages(file_bytes)
     elif ext in ("docx", "doc"):
-        return _extract_docx_pages(file_bytes)
+        pages = _extract_docx_pages(file_bytes)
     else:
         raise ValueError(
             f"Unsupported file type: .{ext}  |  Supported: .txt, .pdf, .docx"
         )
+    
+    # Final check for empty results across all types
+    if not pages or all(not p.strip() for p in pages):
+        raise ValueError(f"The file '{filename}' contains no extractable text.")
+    
+    return pages
 
 
 def _extract_txt_pages(data: bytes, chars_per_page: int = 3000) -> List[str]:
@@ -33,8 +39,8 @@ def _extract_txt_pages(data: bytes, chars_per_page: int = 3000) -> List[str]:
         except UnicodeDecodeError:
             continue
     
-    if not text:
-        raise ValueError("Could not decode .txt file with any known encoding.")
+    if not text or not text.strip():
+        return []
 
     # Split into rough "pages"
     return [text[i : i + chars_per_page] for i in range(0, len(text), chars_per_page)]
@@ -52,11 +58,9 @@ def _extract_pdf_pages(data: bytes) -> List[str]:
     pages: list[str] = []
     for page in reader.pages:
         text = page.extract_text()
-        if text:
+        if text and text.strip():
             pages.append(text)
 
-    if not pages:
-        raise ValueError("PDF contains no extractable text (may be image-based).")
     return pages
 
 
@@ -74,7 +78,9 @@ def _extract_docx_pages(data: bytes, paragraphs_per_page: int = 15) -> List[str]
     # Split paragraphs into rough pages
     pages = []
     for i in range(0, len(paragraphs), paragraphs_per_page):
-        pages.append("\n".join(paragraphs[i : i + paragraphs_per_page]))
+        chunk = "\n".join(paragraphs[i : i + paragraphs_per_page])
+        if chunk.strip():
+            pages.append(chunk)
     
     return pages
 
